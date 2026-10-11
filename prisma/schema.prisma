@@ -1,0 +1,398 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                String            @id @default(uuid()) @db.Uuid
+  fullName          String            @map("full_name")
+  username          String            @unique
+  passwordHash      String            @map("password_hash")
+  role              UserRole          @default(RECEPTIONIST)
+  isActive          Boolean           @default(true) @map("is_active")
+  lastLoginAt       DateTime?         @map("last_login_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  auditLogs         AuditLog[]
+  generatedReports  GeneratedReport[] @relation("ReportGeneratedBy")
+  completedTests    PatientTest[]     @relation("PatientTestCompletedBy")
+  collectedReceipts Receipt[]         @relation("ReceiptCollectedBy")
+  sessions          Session[]
+  updatedSettings   SystemSettings[]  @relation("SettingsUpdatedBy")
+  enteredResults    TestResult[]      @relation("ResultEnteredBy")
+  createdTests      Test[]            @relation("TestCreatedBy")
+
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  tokenHash  String   @unique @map("token_hash")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Patient {
+  id                  String    @id @default(uuid()) @db.Uuid
+  mrNumber            BigInt    @unique @default(autoincrement()) @map("mr_number")
+  fullName            String    @map("full_name")
+  fatherOrHusbandName String?   @map("father_or_husband_name")
+  gender              Gender
+  dateOfBirth         DateTime? @map("date_of_birth") @db.Date
+  phone               String?
+  cnic                String?
+  address             String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  receipts            Receipt[]
+
+  @@index([fullName])
+  @@index([phone])
+  @@index([cnic])
+  @@map("patients")
+}
+
+model Doctor {
+  id            String       @id @default(uuid()) @db.Uuid
+  doctorName    String       @map("doctor_name")
+  qualification String?
+  phone         String?
+  address       String?
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  receipts      Receipt[]
+
+  @@index([doctorName])
+  @@index([status])
+  @@map("doctors")
+}
+
+model Test {
+  id             String        @id @default(uuid()) @db.Uuid
+  testCode       String        @unique @map("test_code")
+  testName       String        @map("test_name")
+  shortName      String?       @map("short_name")
+  description    String?
+  sampleRequired String?       @map("sample_required")
+  reportingTime  String?       @map("reporting_time")
+  reportHeading  String?       @map("report_heading")
+  price          Decimal       @default(0) @db.Decimal(12, 2)
+  status         RecordStatus  @default(ACTIVE)
+  createdById    String?       @map("created_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  paragraph      String?
+  patientTests   PatientTest[]
+  fields         TestField[]
+  sections       TestSection[]
+  createdBy      User?         @relation("TestCreatedBy", fields: [createdById], references: [id])
+
+  @@index([testName])
+  @@index([status])
+  @@index([createdById])
+  @@map("tests")
+}
+
+model TestSection {
+  id           String       @id @default(uuid()) @db.Uuid
+  testId       String       @map("test_id") @db.Uuid
+  sectionName  String       @map("section_name")
+  displayOrder Int          @default(0) @map("display_order")
+  status       RecordStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  fields       TestField[]
+  test         Test         @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@index([testId])
+  @@index([testId, displayOrder])
+  @@map("test_sections")
+}
+
+model TestField {
+  id              String         @id @default(uuid()) @db.Uuid
+  testId          String         @map("test_id") @db.Uuid
+  sectionId       String?        @map("section_id") @db.Uuid
+  fieldCode       String?        @map("field_code")
+  fieldName       String         @map("field_name")
+  inputType       FieldInputType @default(NUMBER) @map("input_type")
+  unit            String?
+  maleMin         Decimal?       @map("male_min") @db.Decimal(12, 4)
+  maleMax         Decimal?       @map("male_max") @db.Decimal(12, 4)
+  femaleMin       Decimal?       @map("female_min") @db.Decimal(12, 4)
+  femaleMax       Decimal?       @map("female_max") @db.Decimal(12, 4)
+  childMin        Decimal?       @map("child_min") @db.Decimal(12, 4)
+  childMax        Decimal?       @map("child_max") @db.Decimal(12, 4)
+  normalText      String?        @map("normal_text")
+  defaultValue    String?        @map("default_value")
+  options         Json?
+  isRequired      Boolean        @default(false) @map("is_required")
+  autoAbnormal    Boolean        @default(true) @map("auto_abnormal")
+  showOnReport    Boolean        @default(true) @map("show_on_report")
+  showInEntry     Boolean        @default(true) @map("show_in_entry")
+  displayOrder    Int            @default(0) @map("display_order")
+  status          RecordStatus   @default(ACTIVE)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  femaleRangeText String?        @map("female_range_text")
+  maleRangeText   String?        @map("male_range_text")
+  section         TestSection?   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  test            Test           @relation(fields: [testId], references: [id], onDelete: Cascade)
+  results         TestResult[]
+
+  @@index([testId])
+  @@index([sectionId])
+  @@index([testId, displayOrder])
+  @@index([sectionId, displayOrder])
+  @@map("test_fields")
+}
+
+model Receipt {
+  id                      String            @id @default(uuid()) @db.Uuid
+  receiptNumber           BigInt            @unique @default(autoincrement()) @map("receipt_number")
+  patientId               String            @map("patient_id") @db.Uuid
+  doctorId                String?           @map("doctor_id") @db.Uuid
+  doctorNameSnapshot      String?           @map("doctor_name_snapshot")
+  patientNameSnapshot     String            @map("patient_name_snapshot")
+  genderSnapshot          Gender            @map("gender_snapshot")
+  ageValue                Int?              @map("age_value")
+  ageUnit                 AgeUnit           @default(YEARS) @map("age_unit")
+  phoneSnapshot           String?           @map("phone_snapshot")
+  cnicSnapshot            String?           @map("cnic_snapshot")
+  addressSnapshot         String?           @map("address_snapshot")
+  fatherOrHusbandSnapshot String?           @map("father_or_husband_snapshot")
+  specimen                String?
+  collectionDate          DateTime          @default(now()) @map("collection_date")
+  subtotal                Decimal           @default(0) @db.Decimal(12, 2)
+  discountPercent         Decimal           @default(0) @map("discount_percent") @db.Decimal(5, 2)
+  discountAmount          Decimal           @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  additionalLess          Decimal           @default(0) @map("additional_less") @db.Decimal(12, 2)
+  totalDiscount           Decimal           @default(0) @map("total_discount") @db.Decimal(12, 2)
+  netAmount               Decimal           @default(0) @map("net_amount") @db.Decimal(12, 2)
+  paidAmount              Decimal           @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  dueAmount               Decimal           @default(0) @map("due_amount") @db.Decimal(12, 2)
+  reportStatus            ReceiptStatus     @default(PENDING) @map("report_status")
+  collectedById           String?           @map("collected_by_id") @db.Uuid
+  createdAt               DateTime          @default(now()) @map("created_at")
+  updatedAt               DateTime          @updatedAt @map("updated_at")
+  companyNameSnapshot     String?           @map("company_name_snapshot")
+  referenceType           ReferenceType     @default(SELF) @map("reference_type")
+  specimenSource          SpecimenSource    @default(TAKEN_IN_LAB) @map("specimen_source")
+  generatedReports        GeneratedReport[]
+  patientTests            PatientTest[]
+  collectedBy             User?             @relation("ReceiptCollectedBy", fields: [collectedById], references: [id])
+  doctor                  Doctor?           @relation(fields: [doctorId], references: [id])
+  patient                 Patient           @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([reportStatus])
+  @@index([collectionDate])
+  @@index([collectedById])
+  @@map("receipts")
+}
+
+model PatientTest {
+  id                     String            @id @default(uuid()) @db.Uuid
+  receiptId              String            @map("receipt_id") @db.Uuid
+  testId                 String            @map("test_id") @db.Uuid
+  testCodeSnapshot       String            @map("test_code_snapshot")
+  testNameSnapshot       String            @map("test_name_snapshot")
+  testPriceSnapshot      Decimal           @map("test_price_snapshot") @db.Decimal(12, 2)
+  sampleRequiredSnapshot String?           @map("sample_required_snapshot")
+  status                 PatientTestStatus @default(PENDING)
+  remarks                String?
+  completedById          String?           @map("completed_by_id") @db.Uuid
+  completedAt            DateTime?         @map("completed_at")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  carryOutDate           DateTime?         @map("carry_out_date")
+  expectedReportDate     DateTime?         @map("expected_report_date")
+  completedBy            User?             @relation("PatientTestCompletedBy", fields: [completedById], references: [id])
+  receipt                Receipt           @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  test                   Test              @relation(fields: [testId], references: [id])
+  results                TestResult[]
+
+  @@unique([receiptId, testId])
+  @@index([receiptId])
+  @@index([testId])
+  @@index([status])
+  @@index([completedById])
+  @@map("patient_tests")
+}
+
+model TestResult {
+  id                     String       @id @default(uuid()) @db.Uuid
+  patientTestId          String       @map("patient_test_id") @db.Uuid
+  fieldId                String       @map("field_id") @db.Uuid
+  fieldNameSnapshot      String       @map("field_name_snapshot")
+  sectionNameSnapshot    String?      @map("section_name_snapshot")
+  resultValue            String?      @map("result_value")
+  unitSnapshot           String?      @map("unit_snapshot")
+  referenceRangeSnapshot String?      @map("reference_range_snapshot")
+  abnormalFlag           AbnormalFlag @default(NOT_CHECKED) @map("abnormal_flag")
+  isManuallyOverridden   Boolean      @default(false) @map("is_manually_overridden")
+  remarks                String?
+  enteredById            String?      @map("entered_by_id") @db.Uuid
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+  enteredBy              User?        @relation("ResultEnteredBy", fields: [enteredById], references: [id])
+  field                  TestField    @relation(fields: [fieldId], references: [id])
+  patientTest            PatientTest  @relation(fields: [patientTestId], references: [id], onDelete: Cascade)
+
+  @@unique([patientTestId, fieldId])
+  @@index([patientTestId])
+  @@index([fieldId])
+  @@index([abnormalFlag])
+  @@index([enteredById])
+  @@map("test_results")
+}
+
+model GeneratedReport {
+  id            String   @id @default(uuid()) @db.Uuid
+  receiptId     String   @map("receipt_id") @db.Uuid
+  reportVersion Int      @default(1) @map("report_version")
+  fileName      String   @map("file_name")
+  filePath      String   @map("file_path")
+  fileSize      BigInt?  @map("file_size")
+  isCurrent     Boolean  @default(true) @map("is_current")
+  generatedById String?  @map("generated_by_id") @db.Uuid
+  generatedAt   DateTime @default(now()) @map("generated_at")
+  generatedBy   User?    @relation("ReportGeneratedBy", fields: [generatedById], references: [id])
+  receipt       Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@unique([receiptId, reportVersion])
+  @@index([receiptId])
+  @@index([isCurrent])
+  @@index([generatedById])
+  @@map("generated_reports")
+}
+
+model SystemSettings {
+  id            String   @id @default(uuid()) @db.Uuid
+  labName       String   @map("lab_name")
+  logoPath      String?  @map("logo_path")
+  address       String?
+  phone         String?
+  email         String?
+  reportFooter  String?  @map("report_footer")
+  receiptPrefix String   @default("REC") @map("receipt_prefix")
+  mrPrefix      String   @default("MR") @map("mr_prefix")
+  currency      String   @default("PKR")
+  updatedById   String?  @map("updated_by_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  updatedBy     User?    @relation("SettingsUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([updatedById])
+  @@map("system_settings")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String?     @map("user_id") @db.Uuid
+  action      AuditAction
+  entityType  String      @map("entity_type")
+  entityId    String?     @map("entity_id") @db.Uuid
+  oldValues   Json?       @map("old_values")
+  newValues   Json?       @map("new_values")
+  description String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum UserRole {
+  ADMIN
+  RECEPTIONIST
+  TECHNICIAN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AgeUnit {
+  YEARS
+  MONTHS
+  DAYS
+}
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ReceiptStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum PatientTestStatus {
+  PENDING
+  DRAFT
+  COMPLETED
+}
+
+enum FieldInputType {
+  NUMBER
+  TEXT
+  SELECT
+  TEXTAREA
+  CHECKBOX
+  POSITIVE_NEGATIVE
+}
+
+enum AbnormalFlag {
+  NORMAL
+  LOW
+  HIGH
+  ABNORMAL
+  NOT_CHECKED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  PRINT
+  GENERATE
+  ACTIVATE
+  DEACTIVATE
+}
+
+enum ReferenceType {
+  SELF
+  DOCTOR
+  COMPANY
+  OTHER
+}
+
+enum SpecimenSource {
+  TAKEN_IN_LAB
+  RECEIVED_FROM_OUTSIDE
+}

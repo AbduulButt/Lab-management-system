@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Next.js build
+.next/
+out/
+
+# Electron build
+desktop-dist/
+dist/
+release/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Database backups
+*.dump
+*.backup
+*.db
+*.sqlite
+
+# Local database directories
+pgdata/
+postgres-data/
+
+# Editor / AI settings
+.claude/
+.windsurf/
+
+# Logs
+*.log
+npm-debug.log*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
